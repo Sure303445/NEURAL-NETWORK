@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CareAI — Chest X-Ray Diagnosis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@200;300;400;600;700;800&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#04060f;--surface:#08101e;--surface2:#0c1628;--surface3:#101a30;
+  --violet:#8b5cf6;--violet-dim:#6d3fd4;--violet-glow:rgba(139,92,246,0.13);
+  --rose:#f472b6;--rose-glow:rgba(244,114,182,0.1);
+  --sky:#38bdf8;--amber:#fbbf24;
+  --red:#f87171;--red-glow:rgba(248,113,113,0.1);
+  --orange:#fb923c;--orange-glow:rgba(251,146,60,0.1);
+  --green:#34d399;--green-glow:rgba(52,211,153,0.1);
+  --border:rgba(139,92,246,0.14);--border2:rgba(139,92,246,0.28);
+  --text:#e8e4f8;--text2:#9b8fc0;--text3:#4a3d7a;
+  --font:'Sora',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+#galaxy-canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+#root{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes scanLine{0%{top:0}100%{top:100%}}
+@keyframes modalIn{from{opacity:0;transform:scale(.93) translateY(18px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes logoGlow{0%,100%{filter:drop-shadow(0 0 6px rgba(139,92,246,.5))}50%{filter:drop-shadow(0 0 14px rgba(139,92,246,.9))}}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:15px 40px;
+  border-bottom:1px solid var(--border);background:rgba(4,6,15,.88);
+  backdrop-filter:blur(18px);position:sticky;top:0;z-index:50}
+.nav-logo{display:flex;align-items:center;gap:13px;cursor:pointer}
+.logo-svg{animation:logoGlow 4s ease-in-out infinite}
+.nav-title{font-size:21px;font-weight:800;color:#fff;letter-spacing:-.5px}
+.nav-title em{font-style:normal;color:var(--violet)}
+.nav-sub{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:3px;margin-top:2px}
+.nav-right{display:flex;align-items:center;gap:9px}
+.pill{padding:5px 15px;border-radius:20px;font-family:var(--mono);font-size:11px;
+  border:1px solid var(--border);color:var(--text2);cursor:pointer;background:transparent;transition:all .2s}
+.pill:hover,.pill.active{border-color:var(--violet);color:var(--violet);background:var(--violet-glow)}
+.status-row{display:flex;align-items:center;gap:6px}
+.status-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+.status-lbl{font-family:var(--mono);font-size:10px;color:var(--text3)}
+
+.hero{padding:52px 40px 36px;text-align:center;animation:fadeUp .7s ease both}
+.hero-eyebrow{font-family:var(--mono);font-size:11px;color:var(--violet);letter-spacing:4px;margin-bottom:14px}
+.hero h1{font-size:clamp(34px,5vw,58px);font-weight:800;line-height:1.07;letter-spacing:-2px;color:#fff;margin-bottom:18px}
+.hero h1 span{color:var(--violet)}
+.hero p{font-size:15px;color:var(--text2);max-width:510px;margin:0 auto 28px;line-height:1.75;font-weight:300}
+.hero-tags{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.tag{padding:5px 15px;border-radius:20px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:1px}
+.tag-violet{color:var(--violet);border:1px solid rgba(139,92,246,.3);background:var(--violet-glow)}
+.tag-red   {color:var(--red);   border:1px solid rgba(248,113,113,.3);background:var(--red-glow)}
+.tag-orange{color:var(--orange);border:1px solid rgba(251,146,60,.3); background:var(--orange-glow)}
+.tag-green {color:var(--green); border:1px solid rgba(52,211,153,.3); background:var(--green-glow)}
+.tag-rose  {color:var(--rose);  border:1px solid rgba(244,114,182,.3);background:var(--rose-glow)}
+
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;
+  padding:0 40px 36px;animation:fadeUp .7s .1s ease both;opacity:0;animation-fill-mode:both}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center}
+.metric-val{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--violet)}
+.metric-lbl{font-size:10px;color:var(--text3);letter-spacing:2px;margin-top:5px}
+
+.main{display:grid;grid-template-columns:1fr 1fr;gap:22px;
+  padding:0 40px 60px;max-width:1300px;margin:0 auto;width:100%}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  overflow:hidden;animation:fadeUp .6s ease both}
+.card-head{padding:15px 22px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between}
+.card-label{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text3);font-weight:500}
+.card-body{padding:22px}
+
+.upload-zone{border:2px dashed rgba(139,92,246,.22);border-radius:14px;
+  padding:46px 24px;text-align:center;cursor:pointer;transition:all .25s;
+  background:rgba(139,92,246,.03);margin-bottom:16px}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--violet);background:var(--violet-glow)}
+.upload-icon{width:54px;height:54px;border:1.5px solid rgba(139,92,246,.35);
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 13px;position:relative}
+.upload-icon::before{content:'';position:absolute;inset:-6px;border:1px solid rgba(139,92,246,.12);border-radius:50%}
+.upload-plus{font-size:22px;color:var(--violet);line-height:1}
+.upload-text strong{display:block;color:#fff;font-size:14px;margin-bottom:4px;font-weight:600}
+.upload-text span{font-size:12px;color:var(--text3)}
+
+.img-preview{border-radius:12px;overflow:hidden;position:relative;margin-bottom:16px;border:1px solid var(--border2)}
+.img-preview img{width:100%;display:block;max-height:300px;object-fit:cover}
+.img-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 55%,rgba(4,6,15,.85))}
+.img-label{position:absolute;bottom:11px;left:13px;font-family:var(--mono);font-size:10px;color:var(--violet);letter-spacing:2px}
+.scan-bar{position:absolute;left:0;right:0;height:2px;background:var(--violet);opacity:.5;animation:scanLine 3s linear infinite}
+
+.scan-frame{position:relative;background:var(--surface2);border-radius:14px;
+  overflow:hidden;margin-bottom:16px;border:1px solid var(--border)}
+.scan-geo{padding:22px;display:flex;align-items:center;justify-content:center;min-height:240px}
+.scan-corner{position:absolute;width:17px;height:17px;border-color:var(--violet);border-style:solid;opacity:.55}
+.scan-corner.tl{top:11px;left:11px;border-width:2px 0 0 2px}
+.scan-corner.tr{top:11px;right:11px;border-width:2px 2px 0 0}
+.scan-corner.bl{bottom:11px;left:11px;border-width:0 0 2px 2px}
+.scan-corner.br{bottom:11px;right:11px;border-width:0 2px 2px 0}
+
+.btn{width:100%;padding:13px;border:none;border-radius:12px;
+  font-family:var(--mono);font-size:13px;font-weight:700;cursor:pointer;
+  letter-spacing:1px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:var(--violet);color:#fff}
+.btn-primary:hover{background:var(--violet-dim);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn-outline{background:transparent;color:var(--violet);border:1px solid rgba(139,92,246,.35)}
+.btn-outline:hover{background:var(--violet-glow);border-color:var(--violet)}
+.btn-report{background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;margin-top:10px;
+  box-shadow:0 4px 20px rgba(139,92,246,.3)}
+.btn-report:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(139,92,246,.45)}
+.spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.25);
+  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+
+.result-banner{border-radius:14px;padding:21px 23px;margin-bottom:15px;position:relative}
+.res-tb       {background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.28)}
+.res-pneumonia{background:rgba(251,146,60,.07); border:1px solid rgba(251,146,60,.28)}
+.res-normal   {background:rgba(52,211,153,.07); border:1px solid rgba(52,211,153,.28)}
+.res-eyebrow  {font-family:var(--mono);font-size:9px;letter-spacing:3px;margin-bottom:4px}
+.res-name     {font-size:34px;font-weight:800;line-height:1;letter-spacing:-1.5px}
+.res-conf     {font-size:12px;color:var(--text2);margin-top:6px;font-family:var(--mono)}
+.risk-badge   {position:absolute;top:17px;right:17px;padding:5px 13px;
+  border-radius:20px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:2px}
+.risk-high{background:rgba(248,113,113,.18);color:#f87171;border:1px solid rgba(248,113,113,.35)}
+.risk-med {background:rgba(251,146,60,.18); color:#fb923c;border:1px solid rgba(251,146,60,.35)}
+.risk-low {background:rgba(52,211,153,.18); color:#34d399;border:1px solid rgba(52,211,153,.35)}
+
+.prob-row{margin-bottom:13px}
+.prob-meta{display:flex;justify-content:space-between;margin-bottom:5px}
+.prob-name{font-size:13px;font-weight:500}
+.prob-pct{font-family:var(--mono);font-size:13px}
+.prob-track{height:7px;background:var(--surface3);border-radius:4px;overflow:hidden}
+.prob-fill{height:100%;border-radius:4px;transition:width 1.2s cubic-bezier(.4,0,.2,1)}
+
+.obs-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.obs-item:last-child{border-bottom:none}
+.obs-num{width:24px;height:24px;border:1px solid var(--border2);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10px;color:var(--violet);flex-shrink:0}
+.obs-txt{font-size:13px;color:var(--text2);line-height:1.55}
+
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.tab-btn{padding:6px 16px;border-radius:20px;font-family:var(--mono);font-size:11px;
+  border:1px solid var(--border);color:var(--text3);cursor:pointer;
+  background:transparent;transition:all .2s;letter-spacing:1px}
+.tab-btn.active{border-color:var(--violet);color:var(--violet);background:var(--violet-glow)}
+
+.idle-box{background:var(--surface2);border:1px solid var(--border);
+  border-radius:14px;padding:55px 24px;text-align:center}
+.idle-txt{color:var(--text3);font-size:14px;font-weight:300;line-height:1.6}
+.idle-txt b{color:var(--violet);font-weight:600}
+
+.sample-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:11px}
+.sample-card{border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:all .2s}
+.sample-card:hover{transform:translateY(-3px)}
+.s-name{font-size:17px;font-weight:800;margin-bottom:3px;letter-spacing:-.5px}
+.s-conf{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:3px}
+
+.ts-chip{display:inline-flex;align-items:center;gap:7px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:7px 12px;margin-top:11px}
+.ts-chip span{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.ts-chip strong{font-family:var(--mono);font-size:10px;color:var(--violet)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(4,6,15,.92);
+  backdrop-filter:blur(14px);z-index:200;overflow-y:auto;
+  padding:30px 20px;display:flex;align-items:flex-start;justify-content:center}
+.modal{background:var(--surface);border:1px solid var(--border2);
+  border-radius:22px;width:100%;max-width:660px;
+  animation:modalIn .35s ease both;
+  box-shadow:0 40px 80px rgba(0,0,0,.7),0 0 60px rgba(139,92,246,.08)}
+.modal-head{padding:26px 30px 0;display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:21px;font-weight:700;color:#fff;letter-spacing:-.5px}
+.modal-sub{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:2px;margin-top:3px}
+.close-btn{width:34px;height:34px;border:1px solid var(--border);background:transparent;
+  border-radius:10px;cursor:pointer;color:var(--text2);font-size:18px;
+  display:flex;align-items:center;justify-content:center;transition:all .2s}
+.close-btn:hover{border-color:var(--violet);color:var(--violet);background:var(--violet-glow)}
+.modal-body{padding:24px 30px 30px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-label{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:2px;font-weight:500}
+.req{color:var(--violet)}
+.form-input,.form-select{padding:11px 14px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);
+  font-family:var(--font);font-size:14px;outline:none;transition:border .2s;width:100%}
+.form-input:focus,.form-select:focus{border-color:var(--violet);box-shadow:0 0 0 3px rgba(139,92,246,.12)}
+.form-input::placeholder{color:var(--text3)}
+.form-select{appearance:none;cursor:pointer}
+.form-section-title{font-family:var(--mono);font-size:10px;color:var(--violet);
+  letter-spacing:3px;margin:20px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+.form-error{font-size:11px;color:var(--red);margin-top:3px;font-family:var(--mono)}
+
+.footer{margin-top:auto;padding:18px 40px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between}
+.footer-left{font-family:var(--mono);font-size:10px;color:var(--text3);display:flex;align-items:center;gap:10px}
+.footer-right{font-size:11px;color:var(--text3)}
+.footer-dot{color:var(--violet);margin:0 6px}
+
+@media(max-width:860px){
+  .main{grid-template-columns:1fr;padding:0 18px 40px}
+  .metrics{grid-template-columns:repeat(3,1fr);padding:0 18px 28px}
+  .hero{padding:36px 18px 26px}
+  .nav{padding:13px 18px}
+  .form-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<canvas id="galaxy-canvas"></canvas>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ── Galaxy canvas ─────────────────────────────── */
+function initGalaxy() {
+  const c = document.getElementById('galaxy-canvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  let W, H, stars=[], dust=[], nebulas=[];
+  const resize = () => {
+    W = c.width = window.innerWidth;
+    H = c.height = window.innerHeight;
+    stars = Array.from({length:300}, () => ({
+      x:Math.random()*W, y:Math.random()*H,
+      r:Math.random()*1.3+0.2,
+      o:Math.random()*.6+0.1,
+      sp:Math.random()*.6+0.2,
+      ph:Math.random()*Math.PI*2,
+      hue:Math.random()<0.15?'v':Math.random()<0.1?'r':'w'
+    }));
+    dust = Array.from({length:160}, () => {
+      const t=Math.random();
+      return {
+        x:W*0.5+Math.sin(t*Math.PI*2)*W*0.22+(Math.random()-.5)*110,
+        y:H*0.12+t*H*0.78+(Math.random()-.5)*70,
+        r:Math.random()*2.8+0.8, o:Math.random()*.16+0.04,
+        hue:Math.random()<.5?'v':'b'
+      };
+    });
+    nebulas=[
+      {x:W*.18,y:H*.22,rx:160,ry:90, r:0,  o:.05,c:'139,92,246'},
+      {x:W*.82,y:H*.15,rx:140,ry:70, r:.3, o:.04,c:'244,114,182'},
+      {x:W*.65,y:H*.72,rx:180,ry:100,r:.1, o:.05,c:'56,189,248'},
+      {x:W*.35,y:H*.55,rx:100,ry:55, r:.5, o:.04,c:'251,191,36'},
+      {x:W*.5, y:H*.45,rx:220,ry:130,r:0,  o:.06,c:'139,92,246'},
+    ];
+  };
+  resize();
+  window.addEventListener('resize', resize);
+  let t=0;
+  const draw=()=>{
+    ctx.clearRect(0,0,W,H); t+=.008;
+    nebulas.forEach(n=>{
+      ctx.save(); ctx.translate(n.x,n.y); ctx.rotate(n.r+t*.005);
+      const g=ctx.createRadialGradient(0,0,0,0,0,n.rx);
+      g.addColorStop(0,`rgba(${n.c},${n.o*(0.7+0.3*Math.sin(t*.4))})`);
+      g.addColorStop(.5,`rgba(${n.c},${n.o*.4})`);
+      g.addColorStop(1,`rgba(${n.c},0)`);
+      ctx.fillStyle=g; ctx.scale(1,n.ry/n.rx);
+      ctx.beginPath(); ctx.arc(0,0,n.rx,0,Math.PI*2); ctx.fill(); ctx.restore();
+    });
+    dust.forEach(d=>{
+      ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,Math.PI*2);
+      ctx.fillStyle=d.hue==='v'?`rgba(139,92,246,${d.o})`:`rgba(100,140,255,${d.o})`;
+      ctx.fill();
+    });
+    stars.forEach(s=>{
+      const osc=s.o*(0.5+0.5*Math.sin(t*s.sp+s.ph));
+      const col=s.hue==='v'?`rgba(180,140,255,${osc})`:s.hue==='r'?`rgba(255,160,200,${osc})`:`rgba(220,230,255,${osc})`;
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fillStyle=col; ctx.fill();
+      if(s.r>1.0&&osc>.5){
+        ctx.save(); ctx.globalAlpha=(osc-.5)*.6;
+        ctx.strokeStyle=col; ctx.lineWidth=.5;
+        const len=s.r*5;
+        ctx.beginPath(); ctx.moveTo(s.x-len,s.y); ctx.lineTo(s.x+len,s.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s.x,s.y-len); ctx.lineTo(s.x,s.y+len); ctx.stroke();
+        ctx.restore();
+      }
+    });
+    requestAnimationFrame(draw);
+  };
+  draw();
+}
+
+/* ── Galaxy Logo ───────────────────────────────── */
+function GalaxyLogo({size=46}){
+  return(
+    <svg width={size} height={size} viewBox="0 0 46 46" className="logo-svg">
+      <ellipse cx="23" cy="23" rx="20" ry="7" fill="none"
+        stroke="rgba(139,92,246,0.5)" strokeWidth="1.2" strokeDasharray="4,3"/>
+      <ellipse cx="23" cy="23" rx="14" ry="5" fill="none"
+        stroke="rgba(244,114,182,0.4)" strokeWidth="1" strokeDasharray="3,4"
+        transform="rotate(60 23 23)"/>
+      <circle cx="23" cy="23" r="8" fill="rgba(139,92,246,0.18)"/>
+      <circle cx="23" cy="23" r="5" fill="rgba(139,92,246,0.35)"/>
+      <polygon points="23,15 24.6,20.4 30,23 24.6,25.6 23,31 21.4,25.6 16,23 21.4,20.4"
+        fill="#a78bfa"/>
+      <circle cx="23" cy="23" r="2.5" fill="#fff" opacity="0.95"/>
+      <circle cx="43" cy="23" r="2.2" fill="#8b5cf6"/>
+      <circle cx="3"  cy="23" r="1.8" fill="#f472b6"/>
+      <circle cx="30" cy="7"  r="1.8" fill="#a78bfa" transform="rotate(60 23 23)"/>
+      <polygon points="8,8 8.7,10.5 11,11.5 8.7,12.5 8,15 7.3,12.5 5,11.5 7.3,10.5"
+        fill="rgba(244,114,182,0.7)"/>
+      <polygon points="38,33 38.6,35 40.5,36 38.6,37 38,39 37.4,37 35.5,36 37.4,35"
+        fill="rgba(139,92,246,0.7)"/>
+      <circle cx="40" cy="9" r="1.2" fill="rgba(251,191,36,0.8)"/>
+    </svg>
+  );
+}
+
+/* ── Galaxy Scan Frame ─────────────────────────── */
+function GalaxyScanFrame({color='#8b5cf6',active=false}){
+  return(
+    <div className="scan-frame">
+      <div className="scan-geo">
+        <div className="scan-corner tl"/><div className="scan-corner tr"/>
+        <div className="scan-corner bl"/><div className="scan-corner br"/>
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <ellipse cx="90" cy="90" rx="80" ry="28" fill="none"
+            stroke={color} strokeWidth=".7" opacity=".18"/>
+          <ellipse cx="90" cy="90" rx="60" ry="20" fill="none"
+            stroke={color} strokeWidth=".9" opacity=".22"
+            transform="rotate(35 90 90)"/>
+          <ellipse cx="90" cy="90" rx="40" ry="14" fill="none"
+            stroke={color} strokeWidth="1" opacity=".3"
+            transform="rotate(70 90 90)"/>
+          <circle cx="90" cy="90" r="65" fill="none" stroke={color} strokeWidth=".6" opacity=".15"/>
+          <circle cx="90" cy="90" r="44" fill="none" stroke={color} strokeWidth=".9" opacity=".22" strokeDasharray="5,4"/>
+          <circle cx="90" cy="90" r="26" fill="none" stroke={color} strokeWidth="1.2" opacity=".35"/>
+          <circle cx="90" cy="90" r="11" fill={color} opacity=".12"/>
+          <polygon points="90,78 91.7,85 98,90 91.7,95 90,102 88.3,95 82,90 88.3,85"
+            fill={color} opacity=".85"/>
+          <circle cx="90" cy="90" r="4" fill="#fff" opacity={active?.9:.5}/>
+          {[0,72,144,216,288].map(a=>(
+            <circle key={a}
+              cx={90+44*Math.cos(a*Math.PI/180)}
+              cy={90+44*Math.sin(a*Math.PI/180)}
+              r="2.5" fill={color} opacity=".55"/>
+          ))}
+          <line x1="90" y1="16" x2="90" y2="44"  stroke={color} strokeWidth=".8" opacity=".28"/>
+          <line x1="90" y1="136" x2="90" y2="164" stroke={color} strokeWidth=".8" opacity=".28"/>
+          <line x1="16"  y1="90" x2="44"  y2="90" stroke={color} strokeWidth=".8" opacity=".28"/>
+          <line x1="136" y1="90" x2="164" y2="90" stroke={color} strokeWidth=".8" opacity=".28"/>
+          <polygon points="90,16 91.2,20 95,21 91.2,22 90,26 88.8,22 85,21 88.8,20"
+            fill={color} opacity=".75"/>
+        </svg>
+        {active&&<div style={{position:'absolute',left:0,right:0,height:'2px',
+          background:color,opacity:.35,animation:'scanLine 3s linear infinite',top:0}}/>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Clinical data ─────────────────────────────── */
+const MOCK=[
+  {diag:'TB',        conf:99.1,pn:0.5, pp:0.4, pt:99.1},
+  {diag:'PNEUMONIA', conf:91.4,pn:3.1, pp:91.4,pt:5.5},
+  {diag:'NORMAL',    conf:98.2,pn:98.2,pp:1.2, pt:0.6},
+];
+const DC={TB:'#f87171',PNEUMONIA:'#fb923c',NORMAL:'#34d399'};
+const DR={TB:['HIGH RISK','risk-high'],PNEUMONIA:['MEDIUM RISK','risk-med'],NORMAL:['LOW RISK','risk-low']};
+const DCLS={TB:'res-tb',PNEUMONIA:'res-pneumonia',NORMAL:'res-normal'};
+
+const OBS={
+  TB:['Bilateral upper lobe infiltrates with cavitary changes identified — findings consistent with active pulmonary tuberculosis.',
+      'Nodular opacities and fibrotic streaking noted in apical segments bilaterally.',
+      'Bilateral hilar lymphadenopathy suspected on PA projection.',
+      'Calcified granulomata present, suggesting prior healed tuberculous infection.',
+      'Right upper lobe cavity with air-fluid level detected — suggestive of active cavitary TB.',
+      'No significant pleural effusion; trachea remains midline.',
+      'Miliary pattern not identified; findings remain highly suspicious for active disease.'],
+  PNEUMONIA:['Patchy airspace consolidation in the right lower lobe with ill-defined margins.',
+             'Air bronchograms visible within the consolidation, consistent with alveolar filling.',
+             'Increased interstitial markings observed in the right mid-zone.',
+             'Mild blunting of the right costophrenic angle suggesting a small pleural effusion.',
+             'Left lung field relatively clear without significant abnormality.',
+             'Cardiac silhouette partially obscured by adjacent right lower zone opacity.',
+             'No cavitation or calcified granuloma identified.'],
+  NORMAL:['Lungs are clear and well-aerated bilaterally with no focal consolidation.',
+          'No pleural effusion, pneumothorax, or hilar adenopathy identified.',
+          'Cardiac silhouette within normal limits; cardiothoracic ratio < 0.5.',
+          'Costophrenic angles are sharp and well-defined bilaterally.',
+          'Trachea is midline; mediastinal contours appear unremarkable.',
+          'No bony abnormality of the visualised thoracic cage detected.',
+          'No cavitary lesion, nodule, or mass identified in either lung field.'],
+};
+
+const IMP={
+  TB:'Findings are strongly consistent with active pulmonary tuberculosis. Cavitary lesions and bilateral upper lobe infiltrates raise significant concern. Immediate clinical evaluation, isolation precautions, and microbiological confirmation are mandatory. Recommend further clinical evaluation without delay.',
+  PNEUMONIA:'Radiological findings are consistent with right lower lobe pneumonia. Clinical and microbiological correlation is strongly advised. Tuberculosis cannot be entirely excluded on imaging alone; further clinical evaluation recommended.',
+  NORMAL:'No acute cardiopulmonary pathology detected on this chest X-ray. Lung fields appear radiologically clear. Findings do not suggest active tuberculosis or pneumonia at this time.',
+};
+
+const STEPS={
+  TB:['Immediate patient isolation and notification to public health authorities as per protocol.',
+      'Sputum smear microscopy (AFB) and mycobacterial culture required urgently.',
+      'Nucleic acid amplification test (NAAT / GeneXpert) recommended for rapid confirmation.',
+      'Refer immediately to an infectious disease or respiratory specialist.',
+      'Initiate DOTS (Directly Observed Treatment) evaluation.',
+      'Contact tracing for close contacts should commence without delay.',
+      'Follow-up chest imaging recommended 2 months after treatment initiation.'],
+  PNEUMONIA:['Urgent consultation with a pulmonologist or infectious disease specialist.',
+             'Sputum culture and sensitivity, complete blood count, and CRP strongly advised.',
+             'Consider empirical antibiotic therapy as guided by clinical assessment.',
+             'Repeat chest X-ray in 4-6 weeks post-treatment to confirm resolution.',
+             'Monitor oxygen saturation and respiratory rate closely.'],
+  NORMAL:['No immediate radiological intervention required.',
+          'Continue routine annual health screening as clinically appropriate.',
+          'Patient advised to return if respiratory symptoms develop or worsen.',
+          'Correlate with clinical history and physical examination findings.'],
+};
+
+/* ── Prob Bar ──────────────────────────────────── */
+function ProbBar({label,pct,color,delay=0}){
+  const [w,setW]=useState(0);
+  useEffect(()=>{const t=setTimeout(()=>setW(pct),delay);return()=>clearTimeout(t);},[pct,delay]);
+  return(
+    <div className="prob-row">
+      <div className="prob-meta">
+        <span className="prob-name">{label}</span>
+        <span className="prob-pct" style={{color}}>{pct.toFixed(1)}%</span>
+      </div>
+      <div className="prob-track">
+        <div className="prob-fill" style={{width:`${w}%`,background:color}}/>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   PDF  —  2-PAGE PROFESSIONAL REPORT
+   All details fully visible, nothing truncated
+══════════════════════════════════════════════════ */
+function buildPDF(patient, result) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+
+  const W  = 210;
+  const mg = 16;          // left/right margin
+  const cw = W - 2*mg;   // 178 mm content width
+  const PH = 297;         // page height
+
+  const now = new Date();
+  const fmtDate = now.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const fmtTime = now.toTimeString().slice(0,8);
+  const ts  = fmtDate + '  ' + fmtTime;
+  const rid = 'RPT-' + Math.floor(100000 + Math.random()*900000);
+  const diag = result.diag;
+
+  // Colour palette
+  const navy=[13,50,80], blue=[28,111,168], skyC=[58,159,214];
+  const pale=[232,244,254], border=[208,229,245];
+  const dark=[26,42,58], mid=[74,107,128], lite=[245,249,254];
+  const green=[26,122,60], greenBg=[226,245,234];
+  const orange=[179,90,0], orangeBg=[255,243,224];
+  const red=[181,43,43],   redBg=[255,232,232];
+  const diagFg = diag==='TB'?red : diag==='PNEUMONIA'?orange : green;
+  const diagBg = diag==='TB'?redBg : diag==='PNEUMONIA'?orangeBg : greenBg;
+  const riskLbl= diag==='TB'?'HIGH RISK' : diag==='PNEUMONIA'?'MEDIUM RISK' : 'LOW RISK';
+
+  // helpers
+  const sf  = (a)=>doc.setFillColor(...a);
+  const sd  = (a)=>doc.setDrawColor(...a);
+  const st  = (a)=>doc.setTextColor(...a);
+  const lw  = (n)=>doc.setLineWidth(n);
+  const ff  = (w)=>doc.setFont('helvetica',w);
+  const fs  = (n)=>doc.setFontSize(n);
+
+  // draw page header band (both pages)
+  function drawHeader(){
+    sf(navy); doc.rect(0,0,W,30,'F');
+    sf([6,24,40]); doc.rect(0,0,6,30,'F');
+    // hex logo
+    const hx=24,hy=15,hr=10;
+    sf(blue); sd(skyC); lw(.8);
+    const hp=Array.from({length:6},(_,i)=>{
+      const a=Math.PI/180*(60*i-30);
+      return[hx+hr*Math.cos(a),hy+hr*Math.sin(a)];
+    });
+    doc.lines(hp.map((p,i)=>{const n=hp[(i+1)%6];return[n[0]-p[0],n[1]-p[1]];}),hp[0][0],hp[0][1],[1,1],'FD',true);
+    sf([255,255,255]);
+    doc.rect(hx-6,hy-1.3,12,2.6,'F');
+    doc.rect(hx-1.3,hy-6,2.6,12,'F');
+    doc.setFillColor(139,92,246);
+    doc.ellipse(hx,hy,8,3,'S');
+    doc.setFillColor(139,92,246); doc.circle(hx+8,hy,1.2,'F');
+    doc.setFillColor(244,114,182); doc.circle(hx-8,hy,1,'F');
+    // text
+    st([255,255,255]); ff('bold'); fs(18);
+    doc.text('CareAI',38,12);
+    ff('normal'); fs(8.5);
+    st([168,212,240]); doc.text('Chest X-Ray Diagnostic System',38,19);
+    st([127,184,216]);
+    doc.text('Radiology Report',W-mg,12,{align:'right'});
+    doc.text('AI-Assisted Differential Diagnosis',W-mg,19,{align:'right'});
+  }
+
+  // page footer band
+  function drawFooter(pageNum,totalPages){
+    sf(navy); doc.rect(0,285,W,12,'F');
+    st([127,184,216]); ff('normal'); fs(7);
+    doc.text(`CareAI Diagnostic System  |  Report ID: ${rid}  |  ${ts}  |  Page ${pageNum} of ${totalPages}`,W/2,292,{align:'center'});
+  }
+
+  // section heading
+  function secHead(label, y){
+    ff('bold'); fs(7.5); st(mid);
+    doc.text(label,mg,y);
+    lw(.8); sd(blue); doc.line(mg,y+1.5,mg+cw,y+1.5);
+    return y+7;
+  }
+
+  // two-row info table — auto-height data row
+  function infoTable(headers, values, colWidths, y){
+    // header row — height 9
+    sf(pale); sd(border); lw(.3);
+    doc.rect(mg,y,cw,9,'F');
+    doc.rect(mg,y,cw,9,'S');
+    let cx=mg;
+    headers.forEach((h,i)=>{
+      if(i>0){lw(.2);sd(border);doc.line(cx,y,cx,y+9);}
+      ff('bold'); fs(7.5); st(mid);
+      doc.text(h,cx+2.5,y+6.5);
+      cx+=colWidths[i];
+    });
+    y+=9;
+    // data row — auto height based on wrapping
+    const lines=values.map((v,i)=>doc.splitTextToSize(String(v||'—'),colWidths[i]-5));
+    const maxLines=Math.max(...lines.map(l=>l.length));
+    const rowH=Math.max(13, maxLines*5.5+5);
+    sf([255,255,255]); sd(border); lw(.3);
+    doc.rect(mg,y,cw,rowH,'FD');
+    cx=mg;
+    lines.forEach((ll,i)=>{
+      if(i>0){lw(.2);sd(border);doc.line(cx,y,cx,y+rowH);}
+      ff('bold'); fs(9.5); st(dark);
+      // vertically center single-line values; top-align multi-line
+      const textY = ll.length===1 ? y+rowH/2+3 : y+8;
+      doc.text(ll,cx+2.5,textY);
+      cx+=colWidths[i];
+    });
+    return y+rowH+5;
+  }
+
+  // findings row
+  function findingRow(num, text, y, even){
+    const lines=doc.splitTextToSize(text,cw-12);
+    const rh=Math.max(10,lines.length*5+5);
+    sf(even?[255,255,255]:pale); sd(border); lw(.3);
+    doc.rect(mg,y,cw,rh,'FD');
+    // number badge
+    sd(blue); lw(.4); doc.rect(mg,y,9,rh,'S');
+    ff('bold'); fs(8); st(blue);
+    doc.text(String(num),mg+4.5,y+rh/2+2.5,{align:'center'});
+    // text
+    ff('normal'); fs(9); st(dark);
+    doc.text(lines,mg+12,y+7);
+    return y+rh;
+  }
+
+  // prob bar row
+  function probRow(label,pct,rgb,y){
+    sf(lite); sd(border); lw(.3);
+    doc.rect(mg,y,cw,11,'FD');
+    ff('bold'); fs(9); st(dark);
+    doc.text(label,mg+3,y+7.5);
+    const bx=mg+38, bw=cw-50, filled=bw*(pct/100);
+    sf(pale); doc.rect(bx,y+3.5,bw,4,'F');
+    if(filled>0){sf(rgb); doc.roundedRect(bx,y+3.5,filled,4,1,1,'F');}
+    st(rgb); fs(9); ff('bold');
+    doc.text(pct.toFixed(1)+'%',mg+cw-2,y+7.5,{align:'right'});
+    return y+11;
+  }
+
+  // next-step row
+  function stepRow(text,y,even){
+    const lines=doc.splitTextToSize(text,cw-12);
+    const rh=Math.max(10,lines.length*5+5);
+    sf(even?diagBg:[255,255,255]);
+    sd(diagFg); lw(.3);
+    doc.rect(mg,y,cw,rh,'FD');
+    st(diagFg); ff('bold'); fs(10);
+    doc.text('>',mg+2.5,y+rh/2+2.5);
+    st(dark); ff('normal'); fs(9);
+    doc.text(lines,mg+9,y+7);
+    return y+rh;
+  }
+
+  /* ═══════════ PAGE 1 ═══════════ */
+  drawHeader();
+  let y=36;
+
+  // meta bar — 4 fields, 2 rows, height=20
+  sf(pale); sd(border); lw(.3);
+  doc.rect(mg,y,cw,20,'FD');
+  // row 1
+  ff('bold'); fs(8); st(dark);
+  doc.text('Report ID:',mg+3,y+6); ff('normal'); st(mid);
+  doc.text(rid,mg+22,y+6);
+  ff('bold'); st(dark);
+  doc.text('Generated:',mg+3+cw*0.34,y+6); ff('normal'); st(mid);
+  doc.text(`${fmtDate}  ${fmtTime}`,mg+3+cw*0.34+22,y+6);
+  // row 2
+  ff('bold'); st(dark);
+  doc.text('Signed:',mg+3,y+14); ff('normal'); st(mid);
+  doc.text(`${fmtDate} at ${fmtTime}`,mg+18,y+14);
+  ff('bold'); st(dark);
+  doc.text('Radiologist:',mg+3+cw*0.34,y+14); ff('normal'); st(mid);
+  doc.text(patient.radiologist,mg+3+cw*0.34+26,y+14);
+  y+=25;
+
+  /* Section 1 */
+  y=secHead('1.  PATIENT INFORMATION',y);
+  y=infoTable(
+    ['Full Name','Age','Gender','Patient ID / MRN','Date of X-Ray'],
+    [patient.name, patient.age+' years', patient.gender, patient.patientId, patient.xrayDate],
+    [cw*.28, cw*.10, cw*.12, cw*.24, cw*.26],
+    y
+  );
+
+  /* Section 2 */
+  y=secHead('2.  EXAMINATION DETAILS',y);
+  y=infoTable(
+    ['Type of Examination','Date & Time of Exam','Reason for Examination'],
+    ['Chest X-Ray — '+patient.examType, patient.examDatetime, patient.examReason],
+    [cw*.28, cw*.30, cw*.42],
+    y
+  );
+
+  /* Section 3 Findings */
+  y=secHead('3.  FINDINGS / KEY OBSERVATIONS',y);
+  OBS[diag].forEach((obs,i)=>{
+    y=findingRow(i+1, obs, y, i%2===0);
+  });
+  y+=4;
+
+  /* AI prob breakdown */
+  ff('bold'); fs(7.5); st(mid);
+  doc.text('AI PROBABILITY BREAKDOWN',mg,y); y+=5;
+  y=probRow('Normal',    result.pn, green,  y);
+  y=probRow('Pneumonia', result.pp, orange, y);
+  y=probRow('Tuberculosis (TB)', result.pt, red, y);
+
+  drawFooter(1,2);
+
+  /* ═══════════ PAGE 2 ═══════════ */
+  doc.addPage();
+  drawHeader();
+  y=36;
+
+  /* Section 4 */
+  y=secHead('4.  IMPRESSION / CONCLUSION',y);
+
+  // diagnosis banner
+  sf(diagBg); sd(diagFg); lw(.8);
+  doc.rect(mg,y,cw,34,'FD');
+  // diagnosis name
+  st(diagFg); ff('bold'); fs(22);
+  doc.text(diag,mg+6,y+14);
+  // confidence
+  ff('normal'); fs(9); st(dark);
+  doc.text('Confidence Score: ',mg+6,y+22);
+  ff('bold'); st(diagFg);
+  doc.text(result.conf.toFixed(1)+'%',mg+46,y+22);
+  // summary line
+  ff('normal'); fs(8.5); st(dark);
+  const summaryText = diag==='NORMAL'?'Lungs appear radiologically clear.':
+                      diag==='PNEUMONIA'?'Signs of pneumonia detected.':
+                      'Findings consistent with active pulmonary tuberculosis.';
+  doc.text(summaryText,mg+6,y+29);
+  // risk badge top right
+  ff('bold'); fs(9); st(diagFg);
+  doc.text(riskLbl,mg+cw-4,y+10,{align:'right'});
+  y+=38;
+
+  // impression text box
+  sf([255,255,255]); sd(border); lw(.3);
+  const impLines=doc.splitTextToSize(IMP[diag],cw-8);
+  const impH=impLines.length*5.5+8;
+  doc.rect(mg,y,cw,impH,'FD');
+  ff('normal'); fs(9); st(dark);
+  doc.text(impLines,mg+4,y+7);
+  y+=impH+4;
+
+  // next steps
+  ff('bold'); fs(7.5); st(mid);
+  doc.text('NEXT STEPS & RECOMMENDATIONS',mg,y); y+=5;
+  STEPS[diag].forEach((s,i)=>{ y=stepRow(s,y,i%2===0); });
+  y+=5;
+
+  /* AI Model info */
+  y=secHead('AI MODEL INFORMATION',y);
+  y=infoTable(
+    ['Model','Architecture','Train Acc.','Test Acc.','Classes'],
+    ['CareAI v2.1','MobileNetV2 + Transfer Learning','98.27%','99.00%','Normal | Pneumonia | TB'],
+    [cw*.15, cw*.33, cw*.14, cw*.13, cw*.25],
+    y
+  );
+
+  /* Section 5 Signature */
+  y=secHead('5.  RADIOLOGIST NAME AND SIGNATURE',y);
+  sf(pale); sd(border); lw(.3);
+  // height 44 — plenty of room for all 5 left fields + right signature
+  doc.rect(mg,y,cw,44,'FD');
+  // vertical divider
+  sd(border); lw(.3);
+  doc.line(mg+cw*0.58,y,mg+cw*0.58,y+44);
+  // LEFT column — 5 fields spaced 8mm apart
+  ff('bold'); fs(8.5); st(mid);
+  doc.text('Reporting Radiologist:',mg+4,y+8);
+  ff('bold'); fs(9); st(dark);
+  const radName=doc.splitTextToSize(patient.radiologist,cw*0.54);
+  doc.text(radName,mg+4,y+14);
+  ff('bold'); fs(8.5); st(mid);
+  doc.text('Radiologist ID:',mg+4,y+22);
+  ff('normal'); fs(9); st(dark); doc.text('RAD-AI-001',mg+35,y+22);
+  ff('bold'); fs(8.5); st(mid);
+  doc.text('Report Generated:',mg+4,y+29);
+  ff('normal'); fs(9); st(dark); doc.text(ts,mg+40,y+29);
+  ff('bold'); fs(8.5); st(mid);
+  doc.text('Report Signed:',mg+4,y+36);
+  ff('normal'); fs(9); st(dark); doc.text(fmtDate+' at '+fmtTime,mg+32,y+36);
+  ff('bold'); fs(8.5); st(mid);
+  doc.text('Report ID:',mg+4,y+43);
+  ff('normal'); fs(9); st(dark); doc.text(rid,mg+23,y+43);
+  // RIGHT column — digital signature
+  ff('bold'); fs(9); st(dark);
+  doc.text('Digital Signature',mg+cw-4,y+9,{align:'right'});
+  ff('normal'); st(mid); fs(9);
+  doc.text('________________________________',mg+cw-4,y+20,{align:'right'});
+  ff('bold'); st(dark); fs(9);
+  doc.text(patient.radiologist,mg+cw-4,y+28,{align:'right'});
+  ff('normal'); st(mid); fs(8);
+  doc.text('RAD-AI-001',mg+cw-4,y+34,{align:'right'});
+  doc.text(fmtDate+' at '+fmtTime,mg+cw-4,y+40,{align:'right'});
+  y+=48;
+
+  /* Professional Advisory box */
+  const advText=
+    'PROFESSIONAL ADVISORY: We strongly advise you to consult a qualified medical professional '+
+    'for clinical confirmation of this AI-generated report. All findings require review by a '+
+    'licensed radiologist or clinician before any clinical action is taken.';
+  const advLines=doc.splitTextToSize(advText,cw-10);
+  const advH=advLines.length*5.2+10;
+  sf(pale); sd(blue); lw(.8);
+  doc.rect(mg,y,cw,advH,'FD');
+  sf(blue); doc.rect(mg,y,4,advH,'F');
+  ff('normal'); fs(8.5); st(dark);
+  doc.text(advLines,mg+8,y+8);
+
+  drawFooter(2,2);
+
+  const fname=`CareAI_${(patient.name||'Patient').replace(/\s+/g,'_')}_${diag}_${Date.now()}.pdf`;
+  doc.save(fname);
+}
+
+/* ── Patient Modal ─────────────────────────────── */
+function PatientModal({result,onClose}){
+  const now=new Date();
+  const [form,setForm]=useState({
+    name:'',age:'',gender:'Female',patientId:'',
+    xrayDate:now.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
+    examType:'PA View',
+    examDatetime:now.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})+
+      ' at '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' hrs',
+    examReason:'',radiologist:''
+  });
+  const [errors,setErrors]=useState({});
+  const set=(k,v)=>{setForm(f=>({...f,[k]:v}));setErrors(e=>({...e,[k]:''}));};
+  const validate=()=>{
+    const e={};
+    if(!form.name.trim())        e.name='Required';
+    if(!form.age.trim())         e.age='Required';
+    if(!form.patientId.trim())   e.patientId='Required';
+    if(!form.radiologist.trim()) e.radiologist='Required';
+    if(!form.examReason.trim())  e.examReason='Required';
+    setErrors(e);
+    return Object.keys(e).length===0;
+  };
+  const submit=()=>{ if(!validate()) return; buildPDF(form,result); onClose(); };
+
+  return(
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <div className="modal-title">Patient Details</div>
+            <div className="modal-sub">ALL DETAILS WILL APPEAR IN THE PDF REPORT</div>
+          </div>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+
+          <div className="form-section-title">1 · PATIENT INFORMATION</div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">FULL NAME <span className="req">*</span></label>
+              <input className="form-input" placeholder="e.g. Sureka R."
+                value={form.name} onChange={e=>set('name',e.target.value)}/>
+              {errors.name&&<span className="form-error">{errors.name}</span>}
+            </div>
+            <div className="form-group">
+              <label className="form-label">AGE <span className="req">*</span></label>
+              <input className="form-input" type="number" min="1" max="120" placeholder="e.g. 24"
+                value={form.age} onChange={e=>set('age',e.target.value)}/>
+              {errors.age&&<span className="form-error">{errors.age}</span>}
+            </div>
+            <div className="form-group">
+              <label className="form-label">GENDER</label>
+              <select className="form-select" value={form.gender} onChange={e=>set('gender',e.target.value)}>
+                <option>Female</option><option>Male</option><option>Other</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">PATIENT ID / MRN <span className="req">*</span></label>
+              <input className="form-input" placeholder="e.g. PAT-2026-001"
+                value={form.patientId} onChange={e=>set('patientId',e.target.value)}/>
+              {errors.patientId&&<span className="form-error">{errors.patientId}</span>}
+            </div>
+            <div className="form-group" style={{gridColumn:'span 2'}}>
+              <label className="form-label">DATE OF X-RAY</label>
+              <input className="form-input" placeholder="e.g. 16 March 2026"
+                value={form.xrayDate} onChange={e=>set('xrayDate',e.target.value)}/>
+            </div>
+          </div>
+
+          <div className="form-section-title">2 · EXAMINATION DETAILS</div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">EXAM TYPE</label>
+              <select className="form-select" value={form.examType} onChange={e=>set('examType',e.target.value)}>
+                <option>PA View</option>
+                <option>PA and Lateral View</option>
+                <option>AP View</option>
+                <option>Lateral View Only</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">DATE &amp; TIME OF EXAM</label>
+              <input className="form-input"
+                value={form.examDatetime} onChange={e=>set('examDatetime',e.target.value)}/>
+            </div>
+            <div className="form-group" style={{gridColumn:'span 2'}}>
+              <label className="form-label">REASON FOR EXAMINATION <span className="req">*</span></label>
+              <input className="form-input" placeholder="e.g. Persistent cough for 3 weeks"
+                value={form.examReason} onChange={e=>set('examReason',e.target.value)}/>
+              {errors.examReason&&<span className="form-error">{errors.examReason}</span>}
+            </div>
+          </div>
+
+          <div className="form-section-title">5 · RADIOLOGIST</div>
+          <div className="form-grid">
+            <div className="form-group" style={{gridColumn:'span 2'}}>
+              <label className="form-label">RADIOLOGIST NAME <span className="req">*</span></label>
+              <input className="form-input" placeholder="e.g. Dr. Priya S."
+                value={form.radiologist} onChange={e=>set('radiologist',e.target.value)}/>
+              {errors.radiologist&&<span className="form-error">{errors.radiologist}</span>}
+            </div>
+          </div>
+
+          <div style={{marginTop:14,padding:'11px 14px',
+            background:'rgba(139,92,246,0.06)',border:'1px solid rgba(139,92,246,0.2)',
+            borderRadius:10,fontSize:12,color:'var(--text3)',lineHeight:1.6}}>
+            Fields marked <span className="req">*</span> are required.
+            The generated PDF will be a 2-page professional radiology report with all details visible.
+          </div>
+
+          <div className="modal-actions">
+            <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+            <button className="btn btn-report" onClick={submit}>Generate &amp; Download PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main App ──────────────────────────────────── */
+function App(){
+  const [imgSrc,setImgSrc]=useState(null);
+  const [drag,setDrag]=useState(false);
+  const [analyzing,setAnalyzing]=useState(false);
+  const [result,setResult]=useState(null);
+  const [tab,setTab]=useState('diagnosis');
+  const [showModal,setShowModal]=useState(false);
+  const fileRef=useRef();
+
+  useEffect(()=>{initGalaxy();},[]);
+
+  const handleFile=file=>{
+    if(!file)return;
+    setImgSrc(URL.createObjectURL(file));
+    setResult(null);
+  };
+  const handleDrop=e=>{
+    e.preventDefault();setDrag(false);
+    handleFile(e.dataTransfer.files[0]);
+  };
+  const analyze=async()=>{
+    if(!imgSrc)return;
+    setAnalyzing(true);
+    await new Promise(r=>setTimeout(r,2400));
+    const r=MOCK[Math.floor(Math.random()*MOCK.length)];
+    setResult(r);setAnalyzing(false);setTab('diagnosis');
+  };
+  const reset=()=>{setImgSrc(null);setResult(null);};
+  const dc=result?DC[result.diag]:'#8b5cf6';
+
+  return(
+    <>
+      <nav className="nav">
+        <div className="nav-logo">
+          <GalaxyLogo size={46}/>
+          <div>
+            <div className="nav-title">Care<em>AI</em></div>
+            <div className="nav-sub">CHEST X-RAY DIAGNOSTICS</div>
+          </div>
+        </div>
+        <div className="nav-right">
+          {['Dashboard','Reports'].map(p=>(
+            <button key={p} className={`pill${p==='Dashboard'?' active':''}`}>{p}</button>
+          ))}
+          <div className="status-row">
+            <div className="status-dot"/>
+            <span className="status-lbl">ONLINE</span>
+          </div>
+        </div>
+      </nav>
+
+      <div className="hero">
+        <div className="hero-eyebrow">NEURAL NETWORK · DIFFERENTIAL DIAGNOSIS</div>
+        <h1>AI-Powered<br/>Chest X-Ray <span>Diagnosis</span></h1>
+        <p>Upload a chest X-ray image and receive instant AI-driven differential diagnosis with detailed clinical findings and a downloadable 2-page radiology report.</p>
+        <div className="hero-tags">
+          <span className="tag tag-red">Tuberculosis</span>
+          <span className="tag tag-orange">Pneumonia</span>
+          <span className="tag tag-green">Normal</span>
+          <span className="tag tag-violet">MobileNetV2</span>
+          <span className="tag tag-rose">99% Accuracy</span>
+        </div>
+      </div>
+
+      <div className="metrics">
+        {[{v:'99.0%',l:'TEST ACCURACY'},{v:'3',l:'DISEASE CLASSES'},{v:'2 Pages',l:'PDF REPORT'}].map(m=>(
+          <div key={m.l} className="metric">
+            <div className="metric-val">{m.v}</div>
+            <div className="metric-lbl">{m.l}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="main">
+        {/* LEFT */}
+        <div className="card" style={{animationDelay:'.1s'}}>
+          <div className="card-head">
+            <span className="card-label">X-RAY IMAGE</span>
+            {imgSrc&&<button className="pill" style={{fontSize:10,padding:'3px 11px'}} onClick={reset}>✕ Clear</button>}
+          </div>
+          <div className="card-body">
+            {!imgSrc?(
+              <div className={`upload-zone${drag?' drag':''}`}
+                onClick={()=>fileRef.current?.click()}
+                onDragOver={e=>{e.preventDefault();setDrag(true)}}
+                onDragLeave={()=>setDrag(false)}
+                onDrop={handleDrop}>
+                <div className="upload-icon"><span className="upload-plus">+</span></div>
+                <div className="upload-text">
+                  <strong>Drop X-Ray Image Here</strong>
+                  <span>PNG · JPG · JPEG supported</span>
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" hidden
+                  onChange={e=>handleFile(e.target.files[0])}/>
+              </div>
+            ):(
+              <div className="img-preview">
+                <img src={imgSrc} alt="X-Ray"/>
+                <div className="img-overlay"/>
+                <div className="scan-bar"/>
+                <div className="img-label">CHEST X-RAY</div>
+              </div>
+            )}
+            {!imgSrc&&<GalaxyScanFrame color="#8b5cf6" active={false}/>}
+            <button className="btn btn-primary" onClick={analyze}
+              disabled={!imgSrc||analyzing}>
+              {analyzing?<><div className="spinner"/>Analysing...</>:'Analyze X-Ray →'}
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT */}
+        <div className="card" style={{animationDelay:'.2s'}}>
+          <div className="card-head">
+            <span className="card-label">DIAGNOSIS RESULT</span>
+            {result&&(
+              <span className="tag tag-violet"
+                style={{fontSize:10,padding:'3px 12px',cursor:'pointer'}}
+                onClick={()=>setShowModal(true)}>
+                Generate Report
+              </span>
+            )}
+          </div>
+          <div className="card-body">
+            {result?(
+              <>
+                <div className="tabs">
+                  {['diagnosis','observations','recommendations'].map(t=>(
+                    <button key={t} className={`tab-btn${tab===t?' active':''}`}
+                      onClick={()=>setTab(t)}>{t.toUpperCase()}</button>
+                  ))}
+                </div>
+
+                {tab==='diagnosis'&&(
+                  <>
+                    <div className={`result-banner ${DCLS[result.diag]}`}>
+                      <div className="res-eyebrow" style={{color:dc}}>PRIMARY DIAGNOSIS</div>
+                      <div className="res-name" style={{color:dc}}>{result.diag}</div>
+                      <div className="res-conf">Confidence: <strong style={{color:dc}}>{result.conf.toFixed(1)}%</strong></div>
+                      <div className={`risk-badge ${DR[result.diag][1]}`}>{DR[result.diag][0]}</div>
+                    </div>
+                    <ProbBar label="Normal"    pct={result.pn} color="#34d399" delay={200}/>
+                    <ProbBar label="Pneumonia" pct={result.pp} color="#fb923c" delay={350}/>
+                    <ProbBar label="TB"        pct={result.pt} color="#f87171" delay={500}/>
+                    <div style={{marginTop:10,maxWidth:200,margin:'10px auto 4px'}}>
+                      <GalaxyScanFrame color={dc} active={true}/>
+                    </div>
+                    <div className="ts-chip">
+                      <span>ANALYSED:</span>
+                      <strong>{new Date().toLocaleString('en-GB')}</strong>
+                    </div>
+                    <button className="btn btn-report" onClick={()=>setShowModal(true)}>
+                      Generate 2-Page PDF Report →
+                    </button>
+                  </>
+                )}
+
+                {tab==='observations'&&(
+                  <>
+                    {OBS[result.diag].map((o,i)=>(
+                      <div key={i} className="obs-item">
+                        <div className="obs-num">{String(i+1).padStart(2,'0')}</div>
+                        <div className="obs-txt">{o}</div>
+                      </div>
+                    ))}
+                    <button className="btn btn-report" style={{marginTop:18}} onClick={()=>setShowModal(true)}>
+                      Generate 2-Page PDF Report →
+                    </button>
+                  </>
+                )}
+
+                {tab==='recommendations'&&(
+                  <>
+                    <div className={`result-banner ${DCLS[result.diag]}`} style={{marginBottom:14}}>
+                      <div className="res-eyebrow" style={{color:dc,fontSize:9}}>CLINICAL IMPRESSION</div>
+                      <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,marginTop:6}}>{IMP[result.diag]}</p>
+                    </div>
+                    {STEPS[result.diag].map((s,i)=>(
+                      <div key={i} className="obs-item">
+                        <div className="obs-num" style={{color:dc}}>{i+1}</div>
+                        <div className="obs-txt">{s}</div>
+                      </div>
+                    ))}
+                    <button className="btn btn-report" style={{marginTop:18}} onClick={()=>setShowModal(true)}>
+                      Generate 2-Page PDF Report →
+                    </button>
+                  </>
+                )}
+              </>
+            ):(
+              <>
+                <div className="idle-box">
+                  <svg width="48" height="48" viewBox="0 0 48 48"
+                    style={{margin:'0 auto 14px',display:'block',opacity:.35}}>
+                    <ellipse cx="24" cy="24" rx="20" ry="7" fill="none"
+                      stroke="#8b5cf6" strokeWidth="1.5" strokeDasharray="4,3"/>
+                    <polygon points="24,14 25.8,21 32,24 25.8,27 24,34 22.2,27 16,24 22.2,21"
+                      fill="#8b5cf6"/>
+                    <circle cx="24" cy="24" r="3" fill="#fff" opacity="0.7"/>
+                  </svg>
+                  <div className="idle-txt">Upload an X-ray and click<br/><b>Analyze X-Ray</b> to begin</div>
+                </div>
+                <div style={{marginTop:16}}>
+                  <div className="card-label" style={{marginBottom:10}}>SAMPLE RESULTS</div>
+                  <div className="sample-grid">
+                    {[{d:'NORMAL',c:'#34d399',cls:'res-normal',p:'98.2%'},
+                      {d:'PNEUMONIA',c:'#fb923c',cls:'res-pneumonia',p:'91.4%'},
+                      {d:'TB',c:'#f87171',cls:'res-tb',p:'99.1%'}].map(s=>(
+                      <div key={s.d} className={`sample-card ${s.cls}`}>
+                        <div className="s-name" style={{color:s.c}}>{s.d}</div>
+                        <div className="s-conf">{s.p}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <footer className="footer">
+        <div className="footer-left">
+          <GalaxyLogo size={22}/>
+          CareAI Diagnostic System
+          <span className="footer-dot">·</span>
+          MobileNetV2 · Transfer Learning
+        </div>
+        <div className="footer-right">
+          Test Accuracy 99.0%
+          <span className="footer-dot">·</span>
+          3 Disease Classes
+        </div>
+      </footer>
+
+      {showModal&&<PatientModal result={result} onClose={()=>setShowModal(false)}/>}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
