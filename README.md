@@ -64,6 +64,12 @@ CAREAI/
 - Mobile application
 - Real-time X-ray analysis
 
+  #Deployment pictures
+  <img width="1340" height="629" alt="image" src="https://github.com/user-attachments/assets/855381f0-debf-4794-92de-cb744dfc9d54" />
+  <img width="1339" height="627" alt="image" src="https://github.com/user-attachments/assets/799f6f85-2102-4ea2-8912-5a415203a6f2" />
+
+
+
 ## Author
 
 Sureka Saravanan
