@@ -1,4 +1,4 @@
-# NEURAL-NETWORK   #CAREAI
+# NEURAL-NETWORK 
 # CAREAI
 
 CAREAI is an AI-powered medical diagnosis system that analyzes chest X-ray images to detect Tuberculosis (TB) and Pneumonia using deep learning. The application provides accurate predictions with explainable AI visualizations to assist healthcare professionals and students.
